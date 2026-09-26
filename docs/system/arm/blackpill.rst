@@ -1,9 +1,8 @@
 Black Pill STM32F411CE (local experiment)
 ========================================
 
-``blackpill-f411ce`` is a local, partial STM32F411CE model intended to run
-``demo411`` FreeRTOS firmware unchanged. It is not a complete Black Pill board
-simulation. It does not change existing STM32 machines. The implementation and
+``blackpill-f411ce`` is a local, partial STM32F411CE microcontroller model.
+It is not a complete Black Pill board simulation. It does not change existing STM32 machines. The implementation and
 this documentation are AI-assisted local experimental work, not an upstream
 contribution.
 
@@ -20,50 +19,32 @@ From the QEMU source directory::
   cd build
   ../configure --target-list=arm-softmmu --disable-pvg --disable-docs
   ninja -j 10
-  ./qemu-system-arm -M blackpill-f411ce -kernel /path/to/DemoRTOSProject.elf \
+  ./qemu-system-arm -M blackpill-f411ce -kernel /path/to/firmware.elf \
       -display none -monitor none -serial stdio
 
 On Homebrew, configuration/regeneration may require
 ``PATH="/opt/homebrew/opt/bison/bin:$PATH"`` to select Bison 3 instead of the
 older macOS Bison. ``pkgconf``, GLib, Pixman, Python and Ninja are also needed.
 
-To keep the firmware build and launcher in the same worktree, from the QEMU
-source directory::
-
-  cmake -S /path/to/demo411 -B build/demo411 -G Ninja \
-      -DCMAKE_TOOLCHAIN_FILE=/path/to/demo411/cmake/toolchain_arm.cmake
-  cmake --build build/demo411 -j 10
-  scripts/blackpill/run-demo411.sh
-
-The launcher locates QEMU relative to itself and defaults to
-``build/demo411/DemoRTOSProject.elf``. An optional first argument selects a
-different firmware image; subsequent arguments are passed to QEMU.
-
-The first serial backend is **USART2**, matching the firmware's PA2/PA3 UART.
+The first serial backend is **USART2**, whose pins are PA2/PA3.
 Serial transport does not model baud-rate timing or GPIO alternate-function
 routing. Raw ``.bin`` images are also accepted by ``-kernel``. The firmware
 runs using TCG; Apple's HVF does not accelerate Cortex-M guests.
-
-Type ``?`` for the menu, ``TS?`` to read time, ``TS123456`` to set 12:34:56,
-and ``TD?`` to read the date. The current demo411 date-setting parser uses
-incorrect pointer types with ``sscanf``; successful execution on one build
-is not proof that this firmware defect is harmless. No firmware changes are
-part of this QEMU experiment.
 
 Debugging and GPIO traces
 ------------------------
 
 Append ``-S -gdb tcp:127.0.0.1:1234`` to stop before boot. In an Arm-aware GDB::
 
-  file /path/to/DemoRTOSProject.elf
+  file /path/to/firmware.elf
   target remote 127.0.0.1:1234
   break main
   continue
 
 Append ``-trace enable=stm32f411_gpio -D gpio.log`` to observe GPIOA output
 transitions. Each event records QEMU virtual nanoseconds, the pin number,
-and the level. ``demo411`` toggles PA6 every 1500 ms and PA7 every 800 ms;
-it does not use the usual onboard PC13 LED. There is no graphical board view.
+and the level. Only GPIOA is implemented; the usual onboard PC13 LED is
+not modeled. There is no graphical board view.
 
 For deterministic timing tests, use ``-icount shift=7,sleep=off``. Virtual time
 then runs independently of host wall time. This is useful for testing delays,
@@ -80,7 +61,7 @@ Implemented subset
   AHB/APB prescalers, GPIOA/USART2/PWR resets, and the LSI/LSE RTC clock paths.
   Oscillator/PLL ready flags settle immediately. HCLK/refclk drive the CPU
   and SysTick. APB clock outputs are calculated; UART transport is untimed.
-  Reset starts at HSI; demo411 selects 100 MHz HCLK and 50 MHz APB1.
+  Reset starts at HSI. Guest firmware selects PLL parameters and prescalers.
 * GPIOA: mode, speed, pull configuration and alternate-function register
   storage; input/output data; atomic set/reset; output signals and traces.
   Output mode reflects the output latch into IDR. External input signals are
@@ -102,8 +83,8 @@ Implemented subset
   System reset preserves RTC/backup state and clears LSI enable; backup-domain
   reset clears the RTC. State is not persisted across QEMU processes.
 
-The new control-register MMIO handlers accept aligned 32-bit accesses, matching
-this firmware. They are not general-purpose models for arbitrary firmware.
+The control-register MMIO handlers accept aligned 32-bit accesses. Firmware
+must operate within the supported peripheral subset.
 Other GPIO ports, external board devices, USB, DMA, I2C, SPI, general-purpose
 timers, ADC, watchdogs, RTC alarms/wakeup/interrupts, RTC HSE clocking, flash
 programming, boot ROM, boot-pin remapping and low-power modes are unsupported.
@@ -126,17 +107,6 @@ Run the register tests and neighboring STM32 regressions from ``build``::
 
   pyvenv/bin/meson test --print-errorlogs 'qtest-arm/stm32*'
 
-From the source directory, run the firmware integration test::
-
-  python3 scripts/blackpill/test-demo411.py \
-      --qemu build/qemu-system-arm \
-      --firmware /path/to/DemoRTOSProject.elf \
-      --output build/demo411-test
-
-The integration harness uses only Python's standard library. It checks the
-banner, serial menu, advancing RTC, time/date commands, GPIO virtual-time
-periods, and system reset with RTC preservation. It leaves ``serial.log``,
-``qemu.log`` and ``report.json`` in the selected output directory. It requires
-the default QEMU log tracing backend. Repeat with a ``.bin`` image to test
-raw-binary loading. The application source is not part of this repository;
-pass the separately built ELF or BIN explicitly.
+The qtests exercise memory mapping, clocks/SysTick, GPIO, and RTC behavior
+without an external firmware project. Build and test application firmware in
+its own repository, passing an ELF or BIN image through ``-kernel``.

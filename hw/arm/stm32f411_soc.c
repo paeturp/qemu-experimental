@@ -1,5 +1,5 @@
 /*
- * STM32F411 subset for local demo411 experiments.
+ * STM32F411 peripheral subset for local board emulation experiments.
  * Register definitions follow ST RM0383. No cycle-accurate timing.
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
