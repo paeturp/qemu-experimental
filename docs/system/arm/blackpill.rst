@@ -2,29 +2,66 @@ Black Pill STM32F411CE (local experiment)
 ========================================
 
 ``blackpill-f411ce`` is a local, partial STM32F411CE microcontroller model.
-It is not a complete Black Pill board simulation. It does not change existing STM32 machines. The implementation and
-this documentation are AI-assisted local experimental work, not an upstream
+It is not a complete Black Pill board simulation. It does not change existing
+STM32 machines. The implementation and this documentation are AI-assisted local experimental work, not an upstream
 contribution.
 
 Build and run
 -------------
 
-Build QEMU with ``--target-list=arm-softmmu``. On macOS 27, configure with
-``--disable-pvg`` because the existing Apple graphics device uses removed SDK
-APIs. Documentation generation can be disabled with ``--disable-docs``.
+Use a checkout containing the ``blackpill-f411ce`` machine. This experimental
+model is not included in standard QEMU releases.
 
-From the QEMU source directory::
+Ubuntu prerequisites
+~~~~~~~~~~~~~~~~~~~~
+
+On a current Ubuntu release, install the host compiler and development packages::
+
+  sudo apt update
+  sudo apt install build-essential git ninja-build pkg-config \
+      python3 python3-venv libglib2.0-dev libpixman-1-dev zlib1g-dev \
+      libfdt-dev bison flex
+
+These packages support the ARM system-emulator build below. Additional QEMU
+features may need more dependencies. See the `QEMU build-environment guide
+<https://www.qemu.org/docs/master/devel/build-environment.html>`_ for broader
+builds. The first configuration may need Internet access to obtain build tools
+or subprojects. QEMU is compiled for the host; an Arm bare-metal cross compiler
+is only required separately when compiling guest firmware.
+
+Configure, build and run
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+From the QEMU repository root::
 
   mkdir -p build
   cd build
-  ../configure --target-list=arm-softmmu --disable-pvg --disable-docs
-  ninja -j 10
+  ../configure --target-list=arm-softmmu --disable-docs
+  ninja
+  ./qemu-system-arm -machine help | grep blackpill-f411ce
   ./qemu-system-arm -M blackpill-f411ce -kernel /path/to/firmware.elf \
       -display none -monitor none -serial stdio
 
+Replace ``/path/to/firmware.elf`` with an absolute path to your firmware.
+The executable is ``build/qemu-system-arm`` relative to the repository root;
+no system installation is required. Rebuild from the repository root with::
+
+  ninja -C build
+
+Use a fresh build directory when changing host platforms. The experimental
+model has been tested on macOS; an Ubuntu build has not yet been verified.
+
+macOS differences
+~~~~~~~~~~~~~~~~~
+
+On macOS 27, add ``--disable-pvg`` to the configure command because the existing
+Apple graphics device uses removed SDK APIs. Ubuntu does not need this option.
 On Homebrew, configuration/regeneration may require
 ``PATH="/opt/homebrew/opt/bison/bin:$PATH"`` to select Bison 3 instead of the
 older macOS Bison. ``pkgconf``, GLib, Pixman, Python and Ninja are also needed.
+
+Firmware console
+~~~~~~~~~~~~~~~~
 
 The first serial backend is **USART2**, whose pins are PA2/PA3.
 Serial transport does not model baud-rate timing or GPIO alternate-function
